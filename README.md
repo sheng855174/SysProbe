@@ -1,5 +1,9 @@
 # SysProbe
 
+## 版本
+**當前版本：v0.0.1**  
+
+
 ## Go Service Framework  
 
 本專案使用 Golang 1.25.4 開發，提供一個模組化的系統架構，包含：
