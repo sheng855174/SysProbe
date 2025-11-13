@@ -19,16 +19,16 @@
 │   └── network/         # 網路模組：API / 通訊邏輯
 │
 ├── internal/
+│   ├── utils/
+│   │   ├── log.go       # 共用工具
 │   ├── config/          # YAML 設定載入與解析
 │   ├── registry/        # 服務註冊中心
-│   ├── monitor/
-│   │   ├── network/     # 網路資料（流量、port...）
-│   │   ├── disk/        # 硬碟資料（大小、IO量...）
-│   │   ├── cpu/         # CPU 使用率與負載
-│   │   ├── config.go    # Monitor 模組設定與開關
-│   │   └── manager.go   # Monitor 管理與協調
-│   └── utils/           # 共用工具
-│
+│   └── monitor/
+│       ├── network/     # 網路資料（流量、port...）
+│       ├── disk/        # 硬碟資料（大小、IO量...）
+│       ├── cpu/         # CPU 使用率與負載
+│       ├── config.go    # Monitor 模組設定與開關
+│       └── manager.go   # Monitor 管理與協調
 ├── config.yml           # 使用者可編輯的設定檔
 ├── go.mod
 ├── go.sum
