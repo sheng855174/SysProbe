@@ -2,13 +2,13 @@
 monitor:
   cpu: 
     enable: true
-    interval: 30 # 秒
+    interval: 10 # 秒
   disk: 
     enable: true
-    interval: 30 # 秒
+    interval: 10 # 秒
   net: 
     enable: true
-    interval: 30 # 秒
+    interval: 10 # 秒
 
 # Log 設定
 log:

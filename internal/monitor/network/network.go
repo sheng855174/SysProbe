@@ -38,7 +38,7 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 }
 
 func monitorNet(prev map[string]net.IOCountersStat, intervalSec float64) map[string]net.IOCountersStat {
-	utils.Log.Debug("[Network] 收集網路流量中...")
+	utils.Log.Debug("[Network] 收集網路資訊中...")
 
 	// 1️⃣ 收集介面流量統計
 	stats, err := net.IOCounters(true)
@@ -47,6 +47,18 @@ func monitorNet(prev map[string]net.IOCountersStat, intervalSec float64) map[str
 		return prev
 	}
 
+	// 2️⃣ 統計一次 TCP 連線狀態（全系統）
+	tcpState := make(map[string]int)
+	conns, err := net.Connections("tcp")
+	if err != nil {
+		utils.Log.Error("[Network] 無法取得連線: %v", err)
+	} else {
+		for _, c := range conns {
+			tcpState[c.Status]++
+		}
+	}
+
+	// 🔄3️⃣ 每張網卡一起輸出（整合 TCP 狀態）
 	for _, s := range stats {
 		var txRate, rxRate, txPPS, rxPPS float64
 
@@ -59,41 +71,22 @@ func monitorNet(prev map[string]net.IOCountersStat, intervalSec float64) map[str
 			}
 		}
 
+		// 🔹輸出格式整合：網卡資訊 + TCP 狀態摘要
 		utils.Log.Debug(
-			"[Network] %s: BytesSent=%v, BytesRecv=%v, TxRate=%.2fB/s, RxRate=%.2fB/s, "+
-				"PacketsSent=%v, PacketsRecv=%v, TxPPS=%.2f, RxPPS=%.2f, "+
-				"ErrIn=%v, ErrOut=%v, DropIn=%v, DropOut=%v",
+			"[Network] IF=%s | Tx=%.2fB/s, Rx=%.2fB/s | TxPPS=%.2f, RxPPS=%.2f | "+
+				"Err(in/out)=%v/%v | Drop(in/out)=%v/%v | TCP=%v",
 			s.Name,
-			s.BytesSent,
-			s.BytesRecv,
 			txRate,
 			rxRate,
-			s.PacketsSent,
-			s.PacketsRecv,
 			txPPS,
 			rxPPS,
-			s.Errin,
-			s.Errout,
-			s.Dropin,
-			s.Dropout,
+			s.Errin, s.Errout,
+			s.Dropin, s.Dropout,
+			tcpState,
 		)
 	}
 
-	// 2️⃣ 統計 TCP Port 狀態總數
-	conns, err := net.Connections("tcp")
-	if err != nil {
-		utils.Log.Error("[Network] 無法取得連線: %v", err)
-	} else {
-		statusCount := make(map[string]int)
-		for _, c := range conns {
-			statusCount[c.Status]++
-		}
-		for status, count := range statusCount {
-			utils.Log.Debug("[Network-Port] Status=%s, Count=%d", status, count)
-		}
-	}
-
-	// 3️⃣ 回傳本次 stats 作為下次計算差值
+	// 4️⃣ 回傳本次 stats 作為下次的 prev
 	newPrev := make(map[string]net.IOCountersStat)
 	for _, s := range stats {
 		newPrev[s.Name] = s

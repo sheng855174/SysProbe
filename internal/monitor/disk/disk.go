@@ -14,7 +14,6 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Disk] goroutine panic: %v", r)
-				// 可以選擇重新啟動 goroutine
 				Start(ctx, cfg)
 			}
 		}()
@@ -38,62 +37,91 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 }
 
 func monitorDisk(prevIO map[string]disk.IOCountersStat, intervalMs float64) map[string]disk.IOCountersStat {
-	// 1️⃣ 分割區資訊
+	// 取得 partitions
 	partitions, err := disk.Partitions(false)
 	if err != nil {
 		utils.Log.Error("[Disk] 無法讀取分割區: %v", err)
-	} else {
-		for _, p := range partitions {
-			usage, err := disk.Usage(p.Mountpoint)
-			if err != nil {
-				utils.Log.Error("[Disk] 無法讀取使用狀態: %v", err)
-				continue
-			}
-			utils.Log.Debug(
-				"[Disk] 分割區 %s (掛載 %s, FsType %s, ReadOnly=%v): Total=%vGB, Used=%vGB, Free=%vGB, Usage=%.2f%%",
-				p.Device,
-				p.Mountpoint,
-				p.Fstype,
-				p.Opts == "ro",
-				usage.Total/1024/1024/1024,
-				usage.Used/1024/1024/1024,
-				usage.Free/1024/1024/1024,
-				usage.UsedPercent,
-			)
-		}
 	}
 
-	// 2️⃣ I/O 統計
+	// 取得 I/O counters
 	ioCounters, err := disk.IOCounters()
 	if err != nil {
 		utils.Log.Error("[Disk] 無法讀取 I/O 統計: %v", err)
 		return prevIO
 	}
 
-	for name, counter := range ioCounters {
+	// 合併資料：map["C:"] -> {Partition + IOCounter}
+	type DiskInfo struct {
+		Part  *disk.PartitionStat
+		Usage *disk.UsageStat
+		IO    *disk.IOCountersStat
+	}
+
+	disks := make(map[string]*DiskInfo)
+
+	// 塞 partition 與 usage
+	for _, p := range partitions {
+		usage, _ := disk.Usage(p.Mountpoint)
+		disks[p.Device] = &DiskInfo{
+			Part:  &p,
+			Usage: usage,
+		}
+	}
+
+	// 塞 I/O
+	for name, io := range ioCounters {
+		if disks[name] == nil {
+			disks[name] = &DiskInfo{}
+		}
+		disks[name].IO = &io
+	}
+
+	// 印出合併後的完整資訊
+	for name, d := range disks {
+		if d.Part == nil && d.IO == nil {
+			continue
+		}
+
+		// 計算速率
 		var readRate, writeRate uint64
 		var busyRatio float64
 
 		if prevIO != nil {
-			if prev, ok := prevIO[name]; ok {
-				readRate = counter.ReadBytes - prev.ReadBytes
-				writeRate = counter.WriteBytes - prev.WriteBytes
+			if prev, ok := prevIO[name]; ok && d.IO != nil {
+				readRate = d.IO.ReadBytes - prev.ReadBytes
+				writeRate = d.IO.WriteBytes - prev.WriteBytes
 				if intervalMs > 0 {
-					busyRatio = float64(counter.IoTime-prev.IoTime) / float64(intervalMs) * 100
+					busyRatio = float64(d.IO.IoTime-prev.IoTime) / intervalMs * 100
 				}
 			}
 		}
 
 		utils.Log.Debug(
-			"[Disk] %s: Read=%vB, Write=%vB, ReadCount=%v, WriteCount=%v, ReadTime=%vms, WriteTime=%vms, IoTime=%vms, ReadRate=%vB/s, WriteRate=%vB/s, Busy=%.2f%%",
+			"[Disk] Name=%s | Mount=%v, FsType=%v, RO=%v | Total=%vGB, Used=%vGB, Free=%vGB, Usage=%.2f%% | "+
+				"Read=%vB, Write=%vB | ReadCnt=%v, WriteCnt=%v | ReadTime=%vms, WriteTime=%vms, IoTime=%vms | "+
+				"ReadRate=%vB/s, WriteRate=%vB/s | Busy=%.2f%%",
+
 			name,
-			counter.ReadBytes,
-			counter.WriteBytes,
-			counter.ReadCount,
-			counter.WriteCount,
-			counter.ReadTime,
-			counter.WriteTime,
-			counter.IoTime,
+
+			// Partition/usage
+			getOrNil(func() interface{} { return d.Part.Mountpoint }),
+			getOrNil(func() interface{} { return d.Part.Fstype }),
+			getOrNil(func() interface{} { return d.Part.Opts == "ro" }),
+
+			getOrNil(func() interface{} { return d.Usage.Total / 1024 / 1024 / 1024 }),
+			getOrNil(func() interface{} { return d.Usage.Used / 1024 / 1024 / 1024 }),
+			getOrNil(func() interface{} { return d.Usage.Free / 1024 / 1024 / 1024 }),
+			getOrNil(func() interface{} { return d.Usage.UsedPercent }),
+
+			// IO
+			getOrNil(func() interface{} { return d.IO.ReadBytes }),
+			getOrNil(func() interface{} { return d.IO.WriteBytes }),
+			getOrNil(func() interface{} { return d.IO.ReadCount }),
+			getOrNil(func() interface{} { return d.IO.WriteCount }),
+			getOrNil(func() interface{} { return d.IO.ReadTime }),
+			getOrNil(func() interface{} { return d.IO.WriteTime }),
+			getOrNil(func() interface{} { return d.IO.IoTime }),
+
 			readRate,
 			writeRate,
 			busyRatio,
@@ -101,4 +129,12 @@ func monitorDisk(prevIO map[string]disk.IOCountersStat, intervalMs float64) map[
 	}
 
 	return ioCounters
+}
+
+// 如果資料不存在避免 panic
+func getOrNil(f func() interface{}) interface{} {
+	defer func() {
+		recover()
+	}()
+	return f()
 }
