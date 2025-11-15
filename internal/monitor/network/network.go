@@ -15,14 +15,15 @@ import (
 
 // NetworkInterface 對應每個 NIC 的 JSON
 type NetworkInterface struct {
-	Name  string         `json:"Name"`
-	IP    string         `json:"IP"`  // 優先 IPv4，若無則 IPv6
-	MAC   string         `json:"MAC"` // MAC address
-	Tx    uint64         `json:"Tx"`  // B/s
-	Rx    uint64         `json:"Rx"`  // B/s
-	TxPPS float64        `json:"TxPPS"`
-	RxPPS float64        `json:"RxPPS"`
-	TCP   map[string]int `json:"TCP"` // TCP 狀態統計
+	Name      string         `json:"Name"`
+	IP        string         `json:"IP"`  // 優先 IPv4，若無則 IPv6
+	MAC       string         `json:"MAC"` // MAC address
+	Tx        uint64         `json:"Tx"`  // B/s
+	Rx        uint64         `json:"Rx"`  // B/s
+	TxPPS     float64        `json:"TxPPS"`
+	RxPPS     float64        `json:"RxPPS"`
+	TCP       map[string]int `json:"TCP"` // TCP 狀態統計
+	Timestamp string         `json:"Timestamp"`
 }
 
 // NetworkJSON 對應整個 JSON
@@ -158,14 +159,15 @@ func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) (ma
 		}
 
 		interfaces = append(interfaces, NetworkInterface{
-			Name:  s.Name,
-			IP:    ipAddr,
-			MAC:   macAddr,
-			Tx:    uint64(txRate),
-			Rx:    uint64(rxRate),
-			TxPPS: txPPS,
-			RxPPS: rxPPS,
-			TCP:   tcpState,
+			Name:      s.Name,
+			IP:        ipAddr,
+			MAC:       macAddr,
+			Tx:        uint64(txRate),
+			Rx:        uint64(rxRate),
+			TxPPS:     txPPS,
+			RxPPS:     rxPPS,
+			TCP:       tcpState,
+			Timestamp: time.Now().Format(time.RFC3339),
 		})
 	}
 

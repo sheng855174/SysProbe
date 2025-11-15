@@ -20,6 +20,7 @@ type CPUInfo struct {
 	CpuUsage    float64     `json:"CpuUsage"`
 	CoreUsage   []float64   `json:"CoreUsage"`
 	LoadAverage interface{} `json:"LoadAverage"`
+	Timestamp   string      `json:"Timestamp"`
 	CpuTime     struct {
 		User   float64 `json:"User"`
 		System float64 `json:"System"`
@@ -105,6 +106,7 @@ func monitorCPU() []byte {
 		CoreUsage:   perCore,
 		LoadAverage: loadAvg,
 		CpuTime:     cpuTimes,
+		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 
 	// 一行 JSON 輸出

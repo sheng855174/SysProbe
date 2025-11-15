@@ -23,6 +23,7 @@ type DiskPartition struct {
 	ReadRate  uint64  `json:"ReadRate"`  // B/s
 	WriteRate uint64  `json:"WriteRate"` // B/s
 	Busy      float64 `json:"Busy"`      // %
+	Timestamp string  `json:"Timestamp"`
 }
 
 // DiskInfoJSON 對應整個 JSON 結構
@@ -147,6 +148,7 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) (map[s
 			ReadRate:  readRate,
 			WriteRate: writeRate,
 			Busy:      busy,
+			Timestamp: time.Now().Format(time.RFC3339),
 		})
 	}
 
