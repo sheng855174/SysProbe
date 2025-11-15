@@ -5,6 +5,7 @@ import (
 	"sysprobe/internal/config"
 	"sysprobe/internal/monitor/cpu"
 	"sysprobe/internal/monitor/disk"
+	"sysprobe/internal/monitor/memory"
 	"sysprobe/internal/monitor/network"
 	"sysprobe/internal/utils"
 )
@@ -14,6 +15,10 @@ func LoadMonitor(ctx context.Context, cfg config.MonitorConfig) {
 	if cfg.CPU.Enable {
 		utils.Log.Info("→ Starting CPU monitor")
 		cpu.Start(ctx, cfg.CPU, cfg.Data)
+	}
+	if cfg.Memory.Enable {
+		utils.Log.Info("→ Starting CPU monitor")
+		memory.Start(ctx, cfg.Memory, cfg.Data)
 	}
 	if cfg.Disk.Enable {
 		utils.Log.Info("→ Starting Disk monitor")

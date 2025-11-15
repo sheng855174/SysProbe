@@ -4,6 +4,9 @@ monitor:
   cpu: 
     enable: true
     interval: 10 # 秒
+  memory: 
+    enable: true
+    interval: 10 # 秒
   disk: 
     enable: true
     interval: 10 # 秒
