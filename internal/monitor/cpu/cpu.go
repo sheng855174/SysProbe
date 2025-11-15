@@ -27,7 +27,6 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				utils.Log.Debug("[CPU] 收集 CPU 使用率中...")
 				monitorCPU()
 			case <-ctx.Done():
 				utils.Log.Info("[CPU] 收集器已停止")
@@ -38,6 +37,7 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 }
 
 func monitorCPU() {
+	utils.Log.Debug("[CPU] 收集 CPU 使用率中...")
 	// --- CPU 核心數 ---
 	counts, err := cpu.Counts(true)
 	if err != nil {
