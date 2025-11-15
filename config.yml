@@ -12,6 +12,7 @@ monitor:
 
 # Log 設定
 log:
+  debug: true
   path: "./logs"     # 日誌儲存目錄
   max_size: 10       # 單一 log 檔最大大小（MB）
   max_age: 7         # 保留天數

@@ -32,6 +32,7 @@ type MonitorConfig struct {
 
 // Log
 type LogConfig struct {
+	Debug      bool   `yaml:"debug"`
 	Path       string `yaml:"path"`
 	MaxSizeMB  int    `yaml:"max_size"`
 	MaxAge     int    `yaml:"max_age"`

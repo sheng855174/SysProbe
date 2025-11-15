@@ -23,9 +23,9 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				utils.Log.Info("[Disk] 收集硬碟資訊中...")
+				utils.Log.Debug("[Disk] 收集硬碟資訊中...")
 			case <-ctx.Done():
-				utils.Log.Info("[Disk] 收集器已停止")
+				utils.Log.Debug("[Disk] 收集器已停止")
 				return
 			}
 		}

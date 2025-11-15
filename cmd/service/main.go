@@ -19,12 +19,7 @@ func main() {
 	}
 
 	// 初始化 logger
-	err = utils.InitLogger(utils.LogConfig{
-		Path:       cfg.Log.Path,
-		MaxSizeMB:  cfg.Log.MaxSizeMB,
-		MaxAge:     cfg.Log.MaxAge,
-		MaxBackups: cfg.Log.MaxBackups,
-	})
+	err = utils.InitLogger(cfg.Log)
 	if err != nil {
 		utils.Log.Error("failed to init logger: %v", err)
 	}

@@ -23,9 +23,9 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				utils.Log.Info("[Network] 收集網路流量中...")
+				utils.Log.Debug("[Network] 收集網路流量中...")
 			case <-ctx.Done():
-				utils.Log.Info("[Network] 收集器已停止")
+				utils.Log.Debug("[Network] 收集器已停止")
 				return
 			}
 		}

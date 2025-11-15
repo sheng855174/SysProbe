@@ -6,32 +6,27 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sysprobe/internal/config"
 	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Logger struct {
-	info *log.Logger
-	warn *log.Logger
-	err  *log.Logger
+	info  *log.Logger
+	warn  *log.Logger
+	err   *log.Logger
+	debug *log.Logger
 }
 
 var Log *Logger
-
-type LogConfig struct {
-	Path       string
-	MaxSizeMB  int
-	MaxAge     int
-	MaxBackups int
-}
 
 // log 用法
 // utils.Log.Info("System Agent Service started 🚀")
 // utils.Log.Warn("This is a warning ⚠️")
 // utils.Log.Error("Something went wrong: %v", "timeout error")
 
-func InitLogger(cfg LogConfig) error {
+func InitLogger(cfg config.LogConfig) error {
 	if err := os.MkdirAll(cfg.Path, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %v", err)
 	}
@@ -49,10 +44,18 @@ func InitLogger(cfg LogConfig) error {
 
 	mw := io.MultiWriter(os.Stdout, rotatingFile)
 
+	var debugWriter io.Writer
+	if cfg.Debug {
+		debugWriter = mw
+	} else {
+		debugWriter = io.Discard // 不輸出
+	}
+
 	Log = &Logger{
-		info: log.New(mw, "[INFO]  ", log.LstdFlags|log.Lshortfile),
-		warn: log.New(mw, "[WARN]  ", log.LstdFlags|log.Lshortfile),
-		err:  log.New(mw, "[ERROR] ", log.LstdFlags|log.Lshortfile),
+		info:  log.New(mw, "[INFO]  ", log.LstdFlags|log.Lshortfile),
+		warn:  log.New(mw, "[WARN]  ", log.LstdFlags|log.Lshortfile),
+		err:   log.New(mw, "[ERROR] ", log.LstdFlags|log.Lshortfile),
+		debug: log.New(debugWriter, "[DEBUG] ", log.LstdFlags|log.Lshortfile),
 	}
 	return nil
 }
@@ -67,4 +70,8 @@ func (l *Logger) Warn(msg string, v ...interface{}) {
 
 func (l *Logger) Error(msg string, v ...interface{}) {
 	l.err.Output(2, fmt.Sprintf(msg, v...))
+}
+
+func (l *Logger) Debug(msg string, v ...interface{}) {
+	l.debug.Output(2, fmt.Sprintf(msg, v...))
 }
