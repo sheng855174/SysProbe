@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"strings"
 	"sysprobe/internal/config"
 	"sysprobe/internal/utils"
 	"time"
@@ -21,13 +22,13 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		ticker := time.NewTicker(time.Duration(cfg.Interval) * time.Second)
 		defer ticker.Stop()
 
-		var prevIOCounters map[string]disk.IOCountersStat
+		var prev map[string]disk.IOCountersStat
 		intervalMs := float64(cfg.Interval)
 
 		for {
 			select {
 			case <-ticker.C:
-				prevIOCounters = monitorDisk(prevIOCounters, intervalMs)
+				prev = monitorDisk(prev, intervalMs)
 			case <-ctx.Done():
 				utils.Log.Debug("[Disk] 收集器已停止")
 				return
@@ -36,92 +37,89 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 	}()
 }
 
-func monitorDisk(prevIO map[string]disk.IOCountersStat, intervalMs float64) map[string]disk.IOCountersStat {
-	// 取得 partitions
-	partitions, err := disk.Partitions(false)
-	if err != nil {
-		utils.Log.Error("[Disk] 無法讀取分割區: %v", err)
-	}
+func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[string]disk.IOCountersStat {
+	partitions, _ := disk.Partitions(false)
+	ioCounters, _ := disk.IOCounters()
 
-	// 取得 I/O counters
-	ioCounters, err := disk.IOCounters()
-	if err != nil {
-		utils.Log.Error("[Disk] 無法讀取 I/O 統計: %v", err)
-		return prevIO
-	}
-
-	// 合併資料：map["C:"] -> {Partition + IOCounter}
 	type DiskInfo struct {
 		Part  *disk.PartitionStat
 		Usage *disk.UsageStat
 		IO    *disk.IOCountersStat
 	}
 
-	disks := make(map[string]*DiskInfo)
+	disks := make(map[string]*DiskInfo) // key = Mountpoint
 
-	// 塞 partition 與 usage
+	// 1️⃣ 塞分割區
 	for _, p := range partitions {
+		// 過濾 Linux 的 loop、tmpfs、overlay
+		if p.Fstype == "tmpfs" || p.Fstype == "overlay" || strings.HasPrefix(p.Device, "/dev/loop") {
+			continue
+		}
+
 		usage, _ := disk.Usage(p.Mountpoint)
-		disks[p.Device] = &DiskInfo{
+
+		disks[p.Mountpoint] = &DiskInfo{
 			Part:  &p,
 			Usage: usage,
 		}
 	}
 
-	// 塞 I/O
-	for name, io := range ioCounters {
-		if disks[name] == nil {
-			disks[name] = &DiskInfo{}
-		}
-		disks[name].IO = &io
-	}
-
-	// 印出合併後的完整資訊
-	for name, d := range disks {
-		if d.Part == nil && d.IO == nil {
+	// 2️⃣ 塞 IO counters → 嘗試比對 Mountpoint
+	for _, d := range disks {
+		// Windows: Device = "C:" → IOCounters key = "C:"
+		if io, ok := ioCounters[d.Part.Device]; ok {
+			dd := io
+			d.IO = &dd
 			continue
 		}
 
-		// 計算速率
+		// Linux: Device = "/dev/sda1" → IOCounters key = "sda" or "sda1"
+		dev := d.Part.Device
+		if strings.HasPrefix(dev, "/dev/") {
+			dev = strings.TrimPrefix(dev, "/dev/")
+		}
+
+		if io, ok := ioCounters[dev]; ok {
+			dd := io
+			d.IO = &dd
+			continue
+		}
+
+		// 有些 Linux key 是整 disk：sda、nvme0n1
+		for key := range ioCounters {
+			if strings.HasPrefix(dev, key) {
+				dd := ioCounters[key]
+				d.IO = &dd
+				break
+			}
+		}
+	}
+
+	// 3️⃣ 輸出
+	for mount, d := range disks {
 		var readRate, writeRate uint64
 		var busyRatio float64
 
-		if prevIO != nil {
-			if prev, ok := prevIO[name]; ok && d.IO != nil {
-				readRate = d.IO.ReadBytes - prev.ReadBytes
-				writeRate = d.IO.WriteBytes - prev.WriteBytes
+		if prev != nil && d.IO != nil {
+			if p, ok := prev[d.Part.Device]; ok {
+				readRate = d.IO.ReadBytes - p.ReadBytes
+				writeRate = d.IO.WriteBytes - p.WriteBytes
 				if intervalMs > 0 {
-					busyRatio = float64(d.IO.IoTime-prev.IoTime) / intervalMs * 100
+					busyRatio = float64(d.IO.IoTime-p.IoTime) / intervalMs * 100
 				}
 			}
 		}
 
 		utils.Log.Debug(
-			"[Disk] Name=%s | Mount=%v, FsType=%v, RO=%v | Total=%vGB, Used=%vGB, Free=%vGB, Usage=%.2f%% | "+
-				"Read=%vB, Write=%vB | ReadCnt=%v, WriteCnt=%v | ReadTime=%vms, WriteTime=%vms, IoTime=%vms | "+
-				"ReadRate=%vB/s, WriteRate=%vB/s | Busy=%.2f%%",
-
-			name,
-
-			// Partition/usage
-			getOrNil(func() interface{} { return d.Part.Mountpoint }),
-			getOrNil(func() interface{} { return d.Part.Fstype }),
-			getOrNil(func() interface{} { return d.Part.Opts == "ro" }),
-
-			getOrNil(func() interface{} { return d.Usage.Total / 1024 / 1024 / 1024 }),
-			getOrNil(func() interface{} { return d.Usage.Used / 1024 / 1024 / 1024 }),
-			getOrNil(func() interface{} { return d.Usage.Free / 1024 / 1024 / 1024 }),
-			getOrNil(func() interface{} { return d.Usage.UsedPercent }),
-
-			// IO
-			getOrNil(func() interface{} { return d.IO.ReadBytes }),
-			getOrNil(func() interface{} { return d.IO.WriteBytes }),
-			getOrNil(func() interface{} { return d.IO.ReadCount }),
-			getOrNil(func() interface{} { return d.IO.WriteCount }),
-			getOrNil(func() interface{} { return d.IO.ReadTime }),
-			getOrNil(func() interface{} { return d.IO.WriteTime }),
-			getOrNil(func() interface{} { return d.IO.IoTime }),
-
+			"[Disk] Mount=%s Dev=%s Fs=%s Total=%vGB Used=%vGB Free=%vGB Used=%.2f%% | "+
+				"ReadRate=%vB/s WriteRate=%vB/s Busy=%.2f%%",
+			mount,
+			d.Part.Device,
+			d.Part.Fstype,
+			d.Usage.Total/1024/1024/1024,
+			d.Usage.Used/1024/1024/1024,
+			d.Usage.Free/1024/1024/1024,
+			d.Usage.UsedPercent,
 			readRate,
 			writeRate,
 			busyRatio,
@@ -129,12 +127,4 @@ func monitorDisk(prevIO map[string]disk.IOCountersStat, intervalMs float64) map[
 	}
 
 	return ioCounters
-}
-
-// 如果資料不存在避免 panic
-func getOrNil(f func() interface{}) interface{} {
-	defer func() {
-		recover()
-	}()
-	return f()
 }
