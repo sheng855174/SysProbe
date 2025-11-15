@@ -1,5 +1,6 @@
 # 監控模組
 monitor:
+  data: "./data"
   cpu: 
     enable: true
     interval: 10 # 秒

@@ -31,12 +31,12 @@ type NetworkJSON struct {
 	Interfaces []NetworkInterface `json:"Interfaces"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule) {
+func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Network] goroutine panic: %v", r)
-				Start(ctx, cfg) // restart
+				Start(ctx, cfg, path) // restart
 			}
 		}()
 
@@ -49,7 +49,11 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				prevStats = monitorNet(prevStats, intervalSec)
+				var netwrokData []byte
+				prevStats, netwrokData = monitorNet(prevStats, intervalSec)
+				if len(netwrokData) > 0 {
+					utils.WriteJSONLine(path, "net.jsonl", netwrokData)
+				}
 			case <-ctx.Done():
 				utils.Log.Debug("[Network] 收集器已停止")
 				return
@@ -75,12 +79,12 @@ func isSkipInterface(name string) bool {
 }
 
 // 主流程：收集網卡資料並輸出 JSON（IPv4 優先）
-func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) map[string]gopsnet.IOCountersStat {
+func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) (map[string]gopsnet.IOCountersStat, []byte) {
 	// 1️⃣ 取得所有 NIC 流量（gopsutil）
 	stats, err := gopsnet.IOCounters(true)
 	if err != nil {
 		utils.Log.Error("[Network] 無法取得網路統計: %v", err)
-		return prev
+		return prev, nil
 	}
 
 	// 2️⃣ 統計 TCP 連線狀態（gopsutil）
@@ -171,12 +175,13 @@ func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) map
 		Interfaces: interfaces,
 	}
 	b, _ := json.Marshal(data)
-	utils.Log.Debug("%s", string(b))
+	s := string(b)
+	utils.Log.Debug("%s", s)
 
 	// 5️⃣ 準備下一輪 diff
 	newPrev := make(map[string]gopsnet.IOCountersStat)
 	for _, s := range stats {
 		newPrev[s.Name] = s
 	}
-	return newPrev
+	return newPrev, b
 }

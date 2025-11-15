@@ -31,12 +31,12 @@ type DiskInfoJSON struct {
 	Partitions []DiskPartition `json:"Partitions"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule) {
+func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Disk] goroutine panic: %v", r)
-				Start(ctx, cfg)
+				Start(ctx, cfg, path)
 			}
 		}()
 
@@ -49,7 +49,11 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				prevIO = monitorDisk(prevIO, intervalMs)
+				var diskData []byte
+				prevIO, diskData = monitorDisk(prevIO, intervalMs)
+				if len(diskData) > 0 {
+					utils.WriteJSONLine(path, "disk.jsonl", diskData)
+				}
 			case <-ctx.Done():
 				utils.Log.Debug("[Disk] 收集器已停止")
 				return
@@ -58,7 +62,7 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 	}()
 }
 
-func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[string]disk.IOCountersStat {
+func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) (map[string]disk.IOCountersStat, []byte) {
 	partitions, _ := disk.Partitions(false)
 	ioCounters, _ := disk.IOCounters()
 
@@ -153,7 +157,8 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 
 	// 一行 JSON 輸出
 	b, _ := json.Marshal(data)
-	utils.Log.Debug("%s", string(b))
+	s := string(b)
+	utils.Log.Debug("%s", s)
 
-	return ioCounters
+	return ioCounters, b
 }

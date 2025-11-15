@@ -30,12 +30,12 @@ type CPUInfo struct {
 	} `json:"CpuTime"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule) {
+func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[CPU] goroutine panic: %v", r)
-				Start(ctx, cfg)
+				Start(ctx, cfg, path)
 			}
 		}()
 
@@ -45,7 +45,10 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 		for {
 			select {
 			case <-ticker.C:
-				monitorCPU()
+				cpuData := monitorCPU()
+				if len(cpuData) > 0 {
+					utils.WriteJSONLine(path, "cpu.jsonl", cpuData)
+				}
 			case <-ctx.Done():
 				utils.Log.Info("[CPU] 收集器已停止")
 				return
@@ -54,7 +57,7 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 	}()
 }
 
-func monitorCPU() {
+func monitorCPU() []byte {
 	counts, _ := cpu.Counts(true)
 
 	info, _ := cpu.Info()
@@ -106,5 +109,9 @@ func monitorCPU() {
 
 	// 一行 JSON 輸出
 	b, _ := json.Marshal(data)
-	utils.Log.Debug("%s", string(b))
+	s := string(b)
+	utils.Log.Debug("%s", s)
+
+	return b
+
 }
