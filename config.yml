@@ -1,8 +1,14 @@
 # 監控模組
 monitor:
-  cpu: true
-  disk: true
-  net: true
+  cpu: 
+    enable: true
+    interval: 30 # 秒
+  disk: 
+    enable: true
+    interval: 30 # 秒
+  net: 
+    enable: true
+    interval: 30 # 秒
 
 # Log 設定
 log:

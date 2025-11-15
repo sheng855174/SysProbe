@@ -33,11 +33,7 @@ func main() {
 	// 載入 Monitor
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	monitor.LoadMonitor(ctx, monitor.Config{
-		CPU:  cfg.Monitor.CPU,
-		Disk: cfg.Monitor.Disk,
-		Net:  cfg.Monitor.Net,
-	})
+	monitor.LoadMonitor(ctx, cfg.Monitor)
 
 	utils.Log.Info("Service initialized successfully")
 

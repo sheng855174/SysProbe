@@ -12,17 +12,25 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 }
 
+// Registry
 type RegistryConfig struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 }
 
-type MonitorConfig struct {
-	CPU  bool `yaml:"cpu"`
-	Disk bool `yaml:"disk"`
-	Net  bool `yaml:"net"`
+// Monitor
+type MonitorModule struct {
+	Enable   bool `yaml:"enable"`
+	Interval int  `yaml:"interval"` // 毫秒
 }
 
+type MonitorConfig struct {
+	CPU  MonitorModule `yaml:"cpu"`
+	Disk MonitorModule `yaml:"disk"`
+	Net  MonitorModule `yaml:"net"`
+}
+
+// Log
 type LogConfig struct {
 	Path       string `yaml:"path"`
 	MaxSizeMB  int    `yaml:"max_size"`
