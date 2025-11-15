@@ -42,61 +42,53 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 	ioCounters, _ := disk.IOCounters()
 
 	type DiskInfo struct {
+		Name  string
 		Part  *disk.PartitionStat
 		Usage *disk.UsageStat
 		IO    *disk.IOCountersStat
 	}
 
-	disks := make(map[string]*DiskInfo) // key = Device or Mount
+	disks := make(map[string]*DiskInfo)
 
-	// 1️⃣ 塞 partition + usage
+	// 1️⃣ 抓 partitions
 	for _, p := range partitions {
 		if p.Fstype == "tmpfs" || p.Fstype == "overlay" || strings.HasPrefix(p.Device, "/dev/loop") {
 			continue
 		}
-
 		usage, err := disk.Usage(p.Mountpoint)
 		if err != nil {
 			continue
 		}
-
 		disks[p.Device] = &DiskInfo{
+			Name:  p.Device,
 			Part:  &p,
 			Usage: usage,
 		}
 	}
 
-	// 2️⃣ 塞 I/O
+	// 2️⃣ 把原始磁碟也加進來，避免 Linux 分割區對不上 IOCounters
 	for key, io := range ioCounters {
-		// 找對應 partition
-		for dev, d := range disks {
-			match := false
-			if strings.EqualFold(dev, key) {
-				match = true
-			} else if strings.HasPrefix(dev, "/dev/") && strings.HasPrefix(key, dev[5:]) { // /dev/sda1 -> sda1
-				match = true
-			} else if strings.HasPrefix(dev, key) { // sda -> sda1
-				match = true
+		if _, ok := disks[key]; !ok {
+			disks[key] = &DiskInfo{
+				Name: key,
+				IO:   &io,
 			}
-			if match {
-				dd := io
-				d.IO = &dd
-				break
-			}
+		} else {
+			disks[key].IO = &io
 		}
 	}
 
 	// 3️⃣ 輸出
 	for _, d := range disks {
-		if d.Part == nil || d.Usage == nil || d.IO == nil {
+		if d.Usage == nil {
 			continue
 		}
 
 		readRate, writeRate := uint64(0), uint64(0)
 		busy := float64(0)
 
-		if prev != nil {
-			if prevIO, ok := prev[d.Part.Device]; ok {
+		if prev != nil && d.IO != nil {
+			if prevIO, ok := prev[d.Name]; ok {
 				readRate = d.IO.ReadBytes - prevIO.ReadBytes
 				writeRate = d.IO.WriteBytes - prevIO.WriteBytes
 				if intervalMs > 0 {
@@ -105,15 +97,25 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 			}
 		}
 
+		mount, fs, total, used, free, usage := "-", "-", uint64(0), uint64(0), uint64(0), 0.0
+		if d.Part != nil && d.Usage != nil {
+			mount = d.Part.Mountpoint
+			fs = d.Part.Fstype
+			total = d.Usage.Total / 1024 / 1024 / 1024
+			used = d.Usage.Used / 1024 / 1024 / 1024
+			free = d.Usage.Free / 1024 / 1024 / 1024
+			usage = d.Usage.UsedPercent
+		}
+
 		utils.Log.Debug(
-			"[Disk] Mount=%s Dev=%s Fs=%s Total=%dGB Used=%dGB Free=%dGB Usage=%.2f%% | ReadRate=%dB/s WriteRate=%dB/s Busy=%.2f%%",
-			d.Part.Mountpoint,
-			d.Part.Device,
-			d.Part.Fstype,
-			d.Usage.Total/1024/1024/1024,
-			d.Usage.Used/1024/1024/1024,
-			d.Usage.Free/1024/1024/1024,
-			d.Usage.UsedPercent,
+			"[Disk] Name=%s Mount=%s Fs=%s Total=%dGB Used=%dGB Free=%dGB Usage=%.2f%% | ReadRate=%dB/s WriteRate=%dB/s Busy=%.2f%%",
+			d.Name,
+			mount,
+			fs,
+			total,
+			used,
+			free,
+			usage,
 			readRate,
 			writeRate,
 			busy,
