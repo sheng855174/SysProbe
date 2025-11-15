@@ -7,7 +7,7 @@ import (
 	"sysprobe/internal/utils"
 	"time"
 
-	"github.com/shirou/gopsutil/net"
+	"github.com/shirou/gopsutil/v4/net"
 )
 
 func Start(ctx context.Context, cfg config.MonitorModule) {
