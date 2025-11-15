@@ -76,8 +76,6 @@ func isSkipInterface(name string) bool {
 
 // 主流程：收集網卡資料並輸出 JSON（IPv4 優先）
 func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) map[string]gopsnet.IOCountersStat {
-	utils.Log.Debug("[Network] 收集網路資訊中...")
-
 	// 1️⃣ 取得所有 NIC 流量（gopsutil）
 	stats, err := gopsnet.IOCounters(true)
 	if err != nil {
