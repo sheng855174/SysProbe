@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"context"
+	"encoding/json"
 	"runtime"
 	"sysprobe/internal/config"
 	"sysprobe/internal/utils"
@@ -11,12 +12,29 @@ import (
 	"github.com/shirou/gopsutil/v4/load"
 )
 
+type CPUInfo struct {
+	Category    string      `json:"Category"`
+	CoreCount   int         `json:"CoreCount"`
+	CpuModel    string      `json:"CpuModel"`
+	CpuMHz      float64     `json:"CpuMHz"`
+	CpuUsage    float64     `json:"CpuUsage"`
+	CoreUsage   []float64   `json:"CoreUsage"`
+	LoadAverage interface{} `json:"LoadAverage"`
+	CpuTime     struct {
+		User   float64 `json:"User"`
+		System float64 `json:"System"`
+		Idle   float64 `json:"Idle"`
+		Nice   float64 `json:"Nice"`
+		IOWait float64 `json:"IOWait"`
+		IRQ    float64 `json:"IRQ"`
+	} `json:"CpuTime"`
+}
+
 func Start(ctx context.Context, cfg config.MonitorModule) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[CPU] goroutine panic: %v", r)
-				// 可以選擇重新啟動 goroutine
 				Start(ctx, cfg)
 			}
 		}()
@@ -37,62 +55,56 @@ func Start(ctx context.Context, cfg config.MonitorModule) {
 }
 
 func monitorCPU() {
-	utils.Log.Debug("[CPU] 收集 CPU 使用率中...")
+	counts, _ := cpu.Counts(true)
 
-	// --- CPU 核心數 ---
-	counts, err := cpu.Counts(true)
-	if err != nil {
-		utils.Log.Error("failed to cpu: %v", err)
-	}
-	utils.Log.Debug("CPU 核心數(含超執行緒): %d", counts)
-
-	// --- CPU 型號資訊 ---
-	info, err := cpu.Info()
-	if err != nil {
-		utils.Log.Error("failed to cpu: %v", err)
-	}
-	for _, ci := range info {
-		utils.Log.Debug("CPU 型號: %s, 速度: %.2fMHz", ci.ModelName, ci.Mhz)
+	info, _ := cpu.Info()
+	var model string
+	var mhz float64
+	if len(info) > 0 {
+		model = info[0].ModelName
+		mhz = info[0].Mhz
 	}
 
-	// --- CPU 總體使用率（單行輸出）---
-	percent, err := cpu.Percent(time.Second, false)
-	if err != nil {
-		utils.Log.Error("failed to cpu: %v", err)
-	}
-	// 不加 \n → 就不會自己換行
-	utils.Log.Debug("CPU 使用率(整體): %.2f%%", percent[0])
+	percent, _ := cpu.Percent(time.Second, false)
+	perCore, _ := cpu.Percent(time.Second, true)
 
-	// --- 每核心使用率（每行印一個 core）---
-	perCore, err := cpu.Percent(time.Second, true)
-	if err != nil {
-		utils.Log.Error("failed to cpu: %v", err)
-	}
-	for i, p := range perCore {
-		utils.Log.Debug("  Core[%d]: %.2f%%", i, p)
-	}
-
-	// --- Load Average ---
-	if runtime.GOOS == "windows" {
-		utils.Log.Debug("Load Average: Windows 不支援（略過）")
-	} else {
-		l, err := load.Avg()
-		if err == nil {
-			utils.Log.Debug("Load Avg: 1m=%.2f 5m=%.2f 15m=%.2f",
-				l.Load1, l.Load5, l.Load15)
+	var loadAvg interface{} = nil
+	if runtime.GOOS != "windows" {
+		if l, err := load.Avg(); err == nil {
+			loadAvg = []float64{l.Load1, l.Load5, l.Load15}
 		}
 	}
 
-	// --- CPU Times ---
-	times, err := cpu.Times(false)
-	if err == nil && len(times) > 0 {
-		utils.Log.Debug("CPU Times: User=%.2fs System=%.2fs Idle=%.2fs Nice=%.2fs IOWait=%.2fs IRQ=%.2fs",
-			times[0].User,
-			times[0].System,
-			times[0].Idle,
-			times[0].Nice,
-			times[0].Iowait,
-			times[0].Irq,
-		)
+	times, _ := cpu.Times(false)
+	var cpuTimes struct {
+		User   float64 `json:"User"`
+		System float64 `json:"System"`
+		Idle   float64 `json:"Idle"`
+		Nice   float64 `json:"Nice"`
+		IOWait float64 `json:"IOWait"`
+		IRQ    float64 `json:"IRQ"`
 	}
+	if len(times) > 0 {
+		cpuTimes.User = times[0].User
+		cpuTimes.System = times[0].System
+		cpuTimes.Idle = times[0].Idle
+		cpuTimes.Nice = times[0].Nice
+		cpuTimes.IOWait = times[0].Iowait
+		cpuTimes.IRQ = times[0].Irq
+	}
+
+	data := CPUInfo{
+		Category:    "CPU",
+		CoreCount:   counts,
+		CpuModel:    model,
+		CpuMHz:      mhz,
+		CpuUsage:    percent[0],
+		CoreUsage:   perCore,
+		LoadAverage: loadAvg,
+		CpuTime:     cpuTimes,
+	}
+
+	// 一行 JSON 輸出
+	b, _ := json.Marshal(data)
+	utils.Log.Debug("%s", string(b))
 }

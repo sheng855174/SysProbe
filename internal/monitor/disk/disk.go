@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sysprobe/internal/config"
 	"sysprobe/internal/utils"
@@ -9,6 +10,26 @@ import (
 
 	"github.com/shirou/gopsutil/v4/disk"
 )
+
+// DiskPartition 對應 JSON 中的每個分割區
+type DiskPartition struct {
+	Name      string  `json:"Name"`
+	Mount     string  `json:"Mount"`
+	Fs        string  `json:"Fs"`
+	Total     uint64  `json:"Total"`     // GB
+	Used      uint64  `json:"Used"`      // GB
+	Free      uint64  `json:"Free"`      // GB
+	Usage     float64 `json:"Usage"`     // %
+	ReadRate  uint64  `json:"ReadRate"`  // B/s
+	WriteRate uint64  `json:"WriteRate"` // B/s
+	Busy      float64 `json:"Busy"`      // %
+}
+
+// DiskInfoJSON 對應整個 JSON 結構
+type DiskInfoJSON struct {
+	Category   string          `json:"Category"`
+	Partitions []DiskPartition `json:"Partitions"`
+}
 
 func Start(ctx context.Context, cfg config.MonitorModule) {
 	go func() {
@@ -50,7 +71,7 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 
 	disks := make(map[string]*DiskInfo)
 
-	// 1️⃣ 抓 partitions
+	// 1️⃣ 收集 partitions
 	for _, p := range partitions {
 		if p.Fstype == "tmpfs" || p.Fstype == "overlay" || strings.HasPrefix(p.Device, "/dev/loop") {
 			continue
@@ -66,7 +87,7 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 		}
 	}
 
-	// 2️⃣ 把原始磁碟也加進來，避免 Linux 分割區對不上 IOCounters
+	// 2️⃣ 加入 IO Counters，避免 Linux 分割區對不上
 	for key, io := range ioCounters {
 		if _, ok := disks[key]; !ok {
 			disks[key] = &DiskInfo{
@@ -78,7 +99,8 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 		}
 	}
 
-	// 3️⃣ 輸出
+	var partitionsJSON []DiskPartition
+
 	for _, d := range disks {
 		if d.Usage == nil {
 			continue
@@ -97,7 +119,10 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 			}
 		}
 
-		mount, fs, total, used, free, usage := "-", "-", uint64(0), uint64(0), uint64(0), 0.0
+		mount, fs := "-", "-"
+		total, used, free := uint64(0), uint64(0), uint64(0)
+		usage := 0.0
+
 		if d.Part != nil && d.Usage != nil {
 			mount = d.Part.Mountpoint
 			fs = d.Part.Fstype
@@ -107,20 +132,28 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) map[st
 			usage = d.Usage.UsedPercent
 		}
 
-		utils.Log.Debug(
-			"[Disk] Name=%s Mount=%s Fs=%s Total=%dGB Used=%dGB Free=%dGB Usage=%.2f%% | ReadRate=%dB/s WriteRate=%dB/s Busy=%.2f%%",
-			d.Name,
-			mount,
-			fs,
-			total,
-			used,
-			free,
-			usage,
-			readRate,
-			writeRate,
-			busy,
-		)
+		partitionsJSON = append(partitionsJSON, DiskPartition{
+			Name:      d.Name,
+			Mount:     mount,
+			Fs:        fs,
+			Total:     total,
+			Used:      used,
+			Free:      free,
+			Usage:     usage,
+			ReadRate:  readRate,
+			WriteRate: writeRate,
+			Busy:      busy,
+		})
 	}
+
+	data := DiskInfoJSON{
+		Category:   "DISK",
+		Partitions: partitionsJSON,
+	}
+
+	// 一行 JSON 輸出
+	b, _ := json.Marshal(data)
+	utils.Log.Debug("%s", string(b))
 
 	return ioCounters
 }
