@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"sysprobe/internal/config"
 	"sysprobe/internal/monitor"
+	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
 )
@@ -25,9 +26,18 @@ func main() {
 	}
 	utils.Log.Info("Config and logger initialized")
 
-	// 載入 Monitor
+	// init uuid
+	uuidInfo, _ := utils.InitUUID(cfg.Monitor.Data)
+	utils.Log.Info("UUID: %s", uuidInfo.UUID)
+
+	// 建立 contex
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// 取得 HostInf
+	service.StartHostUpdater(ctx, 15*time.Minute)
+
+	// 載入 Monitor
 	monitor.LoadMonitor(ctx, cfg.Monitor)
 
 	utils.Log.Info("Service initialized successfully")
