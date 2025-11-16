@@ -32,20 +32,21 @@ type NetworkJSON struct {
 	Interfaces []NetworkInterface `json:"Interfaces"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule, path string) {
+func Start(ctx context.Context, cfg config.MonitorConfig) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Network] goroutine panic: %v", r)
-				Start(ctx, cfg, path) // restart
+				Start(ctx, cfg) // restart
 			}
 		}()
 
-		ticker := time.NewTicker(time.Duration(cfg.Interval) * time.Second)
+		logger := utils.GetLogger(cfg.Data+"/net", "net", cfg.Days)
+		ticker := time.NewTicker(time.Duration(cfg.Net.Interval) * time.Second)
 		defer ticker.Stop()
 
 		var prevStats map[string]gopsnet.IOCountersStat
-		intervalSec := float64(cfg.Interval)
+		intervalSec := float64(cfg.Net.Interval)
 
 		for {
 			select {
@@ -53,7 +54,7 @@ func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 				var netwrokData []byte
 				prevStats, netwrokData = monitorNet(prevStats, intervalSec)
 				if len(netwrokData) > 0 {
-					utils.WriteJSONLine(path, "net.jsonl", netwrokData)
+					logger.Write(netwrokData)
 				}
 			case <-ctx.Done():
 				utils.Log.Debug("[Network] 收集器已停止")

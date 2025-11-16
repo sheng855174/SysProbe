@@ -19,16 +19,17 @@ type MemoryInfo struct {
 	Timestamp string  `json:"Timestamp"` // RFC3339
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule, path string) {
+func Start(ctx context.Context, cfg config.MonitorConfig) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Memory] goroutine panic: %v", r)
-				Start(ctx, cfg, path)
+				Start(ctx, cfg)
 			}
 		}()
 
-		ticker := time.NewTicker(time.Duration(cfg.Interval) * time.Second)
+		logger := utils.GetLogger(cfg.Data+"/memory", "memory", cfg.Days)
+		ticker := time.NewTicker(time.Duration(cfg.Memory.Interval) * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -36,7 +37,7 @@ func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 			case <-ticker.C:
 				memData := monitorMemory()
 				if len(memData) > 0 {
-					utils.WriteJSONLine(path, "memory.jsonl", memData)
+					logger.Write(memData)
 				}
 			case <-ctx.Done():
 				utils.Log.Info("[Memory] 收集器已停止")

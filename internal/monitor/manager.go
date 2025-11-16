@@ -14,19 +14,19 @@ func LoadMonitor(ctx context.Context, cfg config.MonitorConfig) {
 	utils.Log.Info("Monitor Manager starting...")
 	if cfg.CPU.Enable {
 		utils.Log.Info("→ Starting CPU monitor")
-		cpu.Start(ctx, cfg.CPU, cfg.Data)
+		cpu.Start(ctx, cfg)
 	}
 	if cfg.Memory.Enable {
 		utils.Log.Info("→ Starting CPU monitor")
-		memory.Start(ctx, cfg.Memory, cfg.Data)
+		memory.Start(ctx, cfg)
 	}
 	if cfg.Disk.Enable {
 		utils.Log.Info("→ Starting Disk monitor")
-		disk.Start(ctx, cfg.Disk, cfg.Data)
+		disk.Start(ctx, cfg)
 	}
 	if cfg.Net.Enable {
 		utils.Log.Info("→ Starting Network monitor")
-		network.Start(ctx, cfg.Net, cfg.Data)
+		network.Start(ctx, cfg)
 	}
 	utils.Log.Info("Monitor started")
 }

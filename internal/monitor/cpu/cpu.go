@@ -31,16 +31,18 @@ type CPUInfo struct {
 	} `json:"CpuTime"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorModule, path string) {
+func Start(ctx context.Context, cfg config.MonitorConfig) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[CPU] goroutine panic: %v", r)
-				Start(ctx, cfg, path)
+				Start(ctx, cfg)
 			}
 		}()
 
-		ticker := time.NewTicker(time.Duration(cfg.Interval) * time.Second)
+		logger := utils.GetLogger(cfg.Data+"/cpu", "cpu", cfg.Days)
+
+		ticker := time.NewTicker(time.Duration(cfg.CPU.Interval) * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -48,7 +50,7 @@ func Start(ctx context.Context, cfg config.MonitorModule, path string) {
 			case <-ticker.C:
 				cpuData := monitorCPU()
 				if len(cpuData) > 0 {
-					utils.WriteJSONLine(path, "cpu.jsonl", cpuData)
+					logger.Write(cpuData)
 				}
 			case <-ctx.Done():
 				utils.Log.Info("[CPU] 收集器已停止")

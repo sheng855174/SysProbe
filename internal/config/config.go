@@ -26,6 +26,7 @@ type MonitorModule struct {
 
 type MonitorConfig struct {
 	Data   string        `yaml:"data"`
+	Days   int           `yaml:"days"`
 	CPU    MonitorModule `yaml:"cpu"`
 	Memory MonitorModule `yaml:"memory"`
 	Disk   MonitorModule `yaml:"disk"`
