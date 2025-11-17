@@ -34,11 +34,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 取得 HostInf
-	service.StartHostUpdater(ctx, 15*time.Minute)
+	// 取得 HostInfo
+	host := service.NewHostUpdater(ctx, 15*time.Minute, uuidInfo.UUID)
 
 	// 載入 Monitor
-	monitor.LoadMonitor(ctx, cfg.Monitor)
+	monitor.LoadMonitor(ctx, cfg.Monitor, host)
 
 	utils.Log.Info("Service initialized successfully")
 

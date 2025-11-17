@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"runtime"
 	"sysprobe/internal/config"
+	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
 
@@ -13,14 +14,15 @@ import (
 )
 
 type CPUInfo struct {
-	Category    string      `json:"Category"`
-	CoreCount   int         `json:"CoreCount"`
-	CpuModel    string      `json:"CpuModel"`
-	CpuMHz      float64     `json:"CpuMHz"`
-	CpuUsage    float64     `json:"CpuUsage"`
-	CoreUsage   []float64   `json:"CoreUsage"`
-	LoadAverage interface{} `json:"LoadAverage"`
-	Timestamp   string      `json:"Timestamp"`
+	Host        service.HostInfo `json:"Host"`
+	Category    string           `json:"Category"`
+	CoreCount   int              `json:"CoreCount"`
+	CpuModel    string           `json:"CpuModel"`
+	CpuMHz      float64          `json:"CpuMHz"`
+	CpuUsage    float64          `json:"CpuUsage"`
+	CoreUsage   []float64        `json:"CoreUsage"`
+	LoadAverage interface{}      `json:"LoadAverage"`
+	Timestamp   string           `json:"Timestamp"`
 	CpuTime     struct {
 		User   float64 `json:"User"`
 		System float64 `json:"System"`
@@ -31,12 +33,12 @@ type CPUInfo struct {
 	} `json:"CpuTime"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorConfig) {
+func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpdater) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[CPU] goroutine panic: %v", r)
-				Start(ctx, cfg)
+				Start(ctx, cfg, host)
 			}
 		}()
 
@@ -48,7 +50,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 		for {
 			select {
 			case <-ticker.C:
-				cpuData := monitorCPU()
+				cpuData := monitorCPU(host)
 				if len(cpuData) > 0 {
 					logger.Write(cpuData)
 				}
@@ -60,7 +62,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 	}()
 }
 
-func monitorCPU() []byte {
+func monitorCPU(host *service.HostUpdater) []byte {
 	counts, _ := cpu.Counts(true)
 
 	info, _ := cpu.Info()
@@ -100,6 +102,7 @@ func monitorCPU() []byte {
 	}
 
 	data := CPUInfo{
+		Host:        host.Get(),
 		Category:    "CPU",
 		CoreCount:   counts,
 		CpuModel:    model,

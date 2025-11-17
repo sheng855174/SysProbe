@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sysprobe/internal/config"
+	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
 
@@ -11,20 +12,21 @@ import (
 )
 
 type MemoryInfo struct {
-	Category  string  `json:"Category"`
-	Total     uint64  `json:"Total"`     // bytes
-	Used      uint64  `json:"Used"`      // bytes
-	Free      uint64  `json:"Free"`      // bytes
-	UsedPct   float64 `json:"UsedPct"`   // %
-	Timestamp string  `json:"Timestamp"` // RFC3339
+	Host      service.HostInfo `json:"Host"`
+	Category  string           `json:"Category"`
+	Total     uint64           `json:"Total"`     // bytes
+	Used      uint64           `json:"Used"`      // bytes
+	Free      uint64           `json:"Free"`      // bytes
+	UsedPct   float64          `json:"UsedPct"`   // %
+	Timestamp string           `json:"Timestamp"` // RFC3339
 }
 
-func Start(ctx context.Context, cfg config.MonitorConfig) {
+func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpdater) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Memory] goroutine panic: %v", r)
-				Start(ctx, cfg)
+				Start(ctx, cfg, host)
 			}
 		}()
 
@@ -35,7 +37,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 		for {
 			select {
 			case <-ticker.C:
-				memData := monitorMemory()
+				memData := monitorMemory(host)
 				if len(memData) > 0 {
 					logger.Write(memData)
 				}
@@ -47,7 +49,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 	}()
 }
 
-func monitorMemory() []byte {
+func monitorMemory(host *service.HostUpdater) []byte {
 	vm, err := mem.VirtualMemory()
 	if err != nil {
 		utils.Log.Error("[Memory] 無法取得記憶體資訊: %v", err)
@@ -55,6 +57,7 @@ func monitorMemory() []byte {
 	}
 
 	data := MemoryInfo{
+		Host:      host.Get(),
 		Category:  "MEMORY",
 		Total:     vm.Total,
 		Used:      vm.Used,

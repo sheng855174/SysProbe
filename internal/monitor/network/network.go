@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sysprobe/internal/config"
+	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
 
@@ -28,16 +29,17 @@ type NetworkInterface struct {
 
 // NetworkJSON 對應整個 JSON
 type NetworkJSON struct {
+	Host       service.HostInfo   `json:"Host"`
 	Category   string             `json:"Category"`
 	Interfaces []NetworkInterface `json:"Interfaces"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorConfig) {
+func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpdater) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Network] goroutine panic: %v", r)
-				Start(ctx, cfg) // restart
+				Start(ctx, cfg, host) // restart
 			}
 		}()
 
@@ -52,7 +54,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 			select {
 			case <-ticker.C:
 				var netwrokData []byte
-				prevStats, netwrokData = monitorNet(prevStats, intervalSec)
+				prevStats, netwrokData = monitorNet(prevStats, intervalSec, host)
 				if len(netwrokData) > 0 {
 					logger.Write(netwrokData)
 				}
@@ -81,7 +83,7 @@ func isSkipInterface(name string) bool {
 }
 
 // 主流程：收集網卡資料並輸出 JSON（IPv4 優先）
-func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) (map[string]gopsnet.IOCountersStat, []byte) {
+func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64, host *service.HostUpdater) (map[string]gopsnet.IOCountersStat, []byte) {
 	// 1️⃣ 取得所有 NIC 流量（gopsutil）
 	stats, err := gopsnet.IOCounters(true)
 	if err != nil {
@@ -174,6 +176,7 @@ func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64) (ma
 
 	// 4️⃣ 整理成 JSON 並一行輸出
 	data := NetworkJSON{
+		Host:       host.Get(),
 		Category:   "NETWORK",
 		Interfaces: interfaces,
 	}

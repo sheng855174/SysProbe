@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sysprobe/internal/config"
+	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
 
@@ -28,16 +29,17 @@ type DiskPartition struct {
 
 // DiskInfoJSON 對應整個 JSON 結構
 type DiskInfoJSON struct {
-	Category   string          `json:"Category"`
-	Partitions []DiskPartition `json:"Partitions"`
+	Host       service.HostInfo `json:"Host"`
+	Category   string           `json:"Category"`
+	Partitions []DiskPartition  `json:"Partitions"`
 }
 
-func Start(ctx context.Context, cfg config.MonitorConfig) {
+func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpdater) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Log.Error("[Disk] goroutine panic: %v", r)
-				Start(ctx, cfg)
+				Start(ctx, cfg, host)
 			}
 		}()
 
@@ -52,7 +54,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 			select {
 			case <-ticker.C:
 				var diskData []byte
-				prevIO, diskData = monitorDisk(prevIO, intervalMs)
+				prevIO, diskData = monitorDisk(prevIO, intervalMs, host)
 				if len(diskData) > 0 {
 					logger.Write(diskData)
 				}
@@ -64,7 +66,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig) {
 	}()
 }
 
-func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) (map[string]disk.IOCountersStat, []byte) {
+func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64, host *service.HostUpdater) (map[string]disk.IOCountersStat, []byte) {
 	partitions, _ := disk.Partitions(false)
 	ioCounters, _ := disk.IOCounters()
 
@@ -154,6 +156,7 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64) (map[s
 	}
 
 	data := DiskInfoJSON{
+		Host:       host.Get(),
 		Category:   "DISK",
 		Partitions: partitionsJSON,
 	}
