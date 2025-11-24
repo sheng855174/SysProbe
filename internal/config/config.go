@@ -7,21 +7,15 @@ import (
 )
 
 type Config struct {
-	Registry RegistryConfig `yaml:"registry"`
-	Monitor  MonitorConfig  `yaml:"monitor"`
-	Log      LogConfig      `yaml:"log"`
+	Monitor MonitorConfig `yaml:"monitor"`
+	Network NetworkConfig `yaml:"network"`
+	Log     LogConfig     `yaml:"log"`
 }
 
-// Registry
-type RegistryConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-}
-
-// Monitor
+// ============ Monitor ===============
 type MonitorModule struct {
 	Enable   bool `yaml:"enable"`
-	Interval int  `yaml:"interval"` // 毫秒
+	Interval int  `yaml:"interval"` // 秒
 }
 
 type MonitorConfig struct {
@@ -33,13 +27,21 @@ type MonitorConfig struct {
 	Net    MonitorModule `yaml:"net"`
 }
 
-// Log
+// ============= Log ================
 type LogConfig struct {
 	Debug      bool   `yaml:"debug"`
 	Path       string `yaml:"path"`
 	MaxSizeMB  int    `yaml:"max_size"`
 	MaxAge     int    `yaml:"max_age"`
 	MaxBackups int    `yaml:"max_backups"`
+}
+
+// ============= Network ================
+type NetworkConfig struct {
+	IgnoreOlder int      `yaml:"ignore_older"`
+	Host        string   `yaml:"host"`
+	Data        string   `yaml:"data"`
+	Category    []string `yaml:"category"`
 }
 
 func Load(path string) (*Config, error) {

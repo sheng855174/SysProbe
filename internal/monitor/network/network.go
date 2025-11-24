@@ -14,6 +14,8 @@ import (
 	gopsnet "github.com/shirou/gopsutil/v4/net" // gopsutil 的 net，用於流量/連線統計
 )
 
+const Category = "NETWORK"
+
 // NetworkInterface 對應每個 NIC 的 JSON
 type NetworkInterface struct {
 	Name      string         `json:"Name"`
@@ -43,7 +45,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpda
 			}
 		}()
 
-		logger := utils.GetLogger(cfg.Data+"/net", "net", cfg.Days)
+		logger := utils.GetLogger(cfg.Data+"/"+Category, Category, cfg.Days)
 		ticker := time.NewTicker(time.Duration(cfg.Net.Interval) * time.Second)
 		defer ticker.Stop()
 
@@ -177,7 +179,7 @@ func monitorNet(prev map[string]gopsnet.IOCountersStat, intervalSec float64, hos
 	// 4️⃣ 整理成 JSON 並一行輸出
 	data := NetworkJSON{
 		Host:       host.Get(),
-		Category:   "NETWORK",
+		Category:   Category,
 		Interfaces: interfaces,
 	}
 	b, _ := json.Marshal(data)

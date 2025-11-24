@@ -13,6 +13,8 @@ import (
 	"github.com/shirou/gopsutil/v4/load"
 )
 
+const Category = "CPU"
+
 type CPUInfo struct {
 	Host        service.HostInfo `json:"Host"`
 	Category    string           `json:"Category"`
@@ -42,7 +44,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpda
 			}
 		}()
 
-		logger := utils.GetLogger(cfg.Data+"/cpu", "cpu", cfg.Days)
+		logger := utils.GetLogger(cfg.Data+"/"+Category, Category, cfg.Days)
 
 		ticker := time.NewTicker(time.Duration(cfg.CPU.Interval) * time.Second)
 		defer ticker.Stop()
@@ -103,7 +105,7 @@ func monitorCPU(host *service.HostUpdater) []byte {
 
 	data := CPUInfo{
 		Host:        host.Get(),
-		Category:    "CPU",
+		Category:    Category,
 		CoreCount:   counts,
 		CpuModel:    model,
 		CpuMHz:      mhz,

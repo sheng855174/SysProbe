@@ -12,6 +12,8 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 )
 
+const Category = "DISK"
+
 // DiskPartition 對應 JSON 中的每個分割區
 type DiskPartition struct {
 	Name      string  `json:"Name"`
@@ -43,7 +45,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpda
 			}
 		}()
 
-		logger := utils.GetLogger(cfg.Data+"/disk", "disk", cfg.Days)
+		logger := utils.GetLogger(cfg.Data+"/"+Category, Category, cfg.Days)
 		ticker := time.NewTicker(time.Duration(cfg.Disk.Interval) * time.Second)
 		defer ticker.Stop()
 
@@ -157,7 +159,7 @@ func monitorDisk(prev map[string]disk.IOCountersStat, intervalMs float64, host *
 
 	data := DiskInfoJSON{
 		Host:       host.Get(),
-		Category:   "DISK",
+		Category:   Category,
 		Partitions: partitionsJSON,
 	}
 

@@ -1,7 +1,7 @@
 # 監控模組
 monitor:
   data: "./data"
-  days: 3
+  days: 3 # 天
   cpu: 
     enable: true
     interval: 10 # 秒
@@ -14,6 +14,13 @@ monitor:
   net: 
     enable: true
     interval: 10 # 秒
+
+# 網路模組
+network:
+  data: "./data/offset.json"
+  category: ["cpu", "disk", "memory", "network"]
+  host: "127.0.0.1:50051"
+  ignore_older: 3 # 天
 
 # Log 設定
 log:

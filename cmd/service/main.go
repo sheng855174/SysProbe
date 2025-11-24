@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"sysprobe/internal/config"
 	"sysprobe/internal/monitor"
+	"sysprobe/internal/network"
 	"sysprobe/internal/service"
 	"sysprobe/internal/utils"
 	"time"
@@ -39,6 +40,9 @@ func main() {
 
 	// 載入 Monitor
 	monitor.LoadMonitor(ctx, cfg.Monitor, host)
+
+	// 載入 Network
+	network.LoadNetwork(ctx, *cfg)
 
 	utils.Log.Info("Service initialized successfully")
 

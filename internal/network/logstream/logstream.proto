@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package logstream;
+
+option go_package = "./proto;proto";
+
+service LogStreamer {
+  rpc StreamLogs(stream LogEvent) returns (Empty);
+}
+
+message LogEvent {
+  uint64 seq = 1;
+  string timestamp = 2;
+  string source = 3;
+  bytes payload = 4;
+}
+
+message Ack {
+  uint64 seq = 1;
+}
+
+message Empty {}

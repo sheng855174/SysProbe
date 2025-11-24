@@ -11,6 +11,8 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
+const Category = "MEMORY"
+
 type MemoryInfo struct {
 	Host      service.HostInfo `json:"Host"`
 	Category  string           `json:"Category"`
@@ -30,7 +32,7 @@ func Start(ctx context.Context, cfg config.MonitorConfig, host *service.HostUpda
 			}
 		}()
 
-		logger := utils.GetLogger(cfg.Data+"/memory", "memory", cfg.Days)
+		logger := utils.GetLogger(cfg.Data+"/"+Category, Category, cfg.Days)
 		ticker := time.NewTicker(time.Duration(cfg.Memory.Interval) * time.Second)
 		defer ticker.Stop()
 
@@ -58,7 +60,7 @@ func monitorMemory(host *service.HostUpdater) []byte {
 
 	data := MemoryInfo{
 		Host:      host.Get(),
-		Category:  "MEMORY",
+		Category:  Category,
 		Total:     vm.Total,
 		Used:      vm.Used,
 		Free:      vm.Available,
